@@ -12,6 +12,10 @@ class LineSplitStream extends Transform {
     return this.accumulator;
   }
 
+  isAccumulatorNotEmpty() {
+    return this.getAccumulator().length > 0;
+  }
+
   append(line) {
     this.accumulator += line;
   }
@@ -24,37 +28,35 @@ class LineSplitStream extends Transform {
     return this.getAccumulator().includes(EOL);
   }
 
-  shift() {
-    const [line, ...tail] = this.getAccumulator().split(EOL);
-    this.update(tail.join(EOL));
-
-    return line;
+  pushMany(lines) {
+    lines.forEach(this.push.bind(this));
   }
 
-  send() {
-    this.push(this.shift());
+  shiftPendingLines() {
+    const pendingLines = this.getAccumulator().split(EOL);
+    const unfinished = pendingLines.pop();
+
+    this.update(unfinished);
+
+    return pendingLines;
   }
 
-  sendIfPossible() {
+  sendPending() {
     if (this.hasEOL()) {
-      this.send();
+      this.pushMany(this.shiftPendingLines());
     }
-  }
-
-  isAccumulatorNotEmpty() {
-    return this.getAccumulator().length > 0;
   }
 
   _transform(chunk, _, done) {
     this.append(chunk.toString());
-    this.sendIfPossible();
+    this.sendPending();
 
     done();
   }
 
   _flush(done) {
     if (this.isAccumulatorNotEmpty()) {
-      this.send();
+      this.push(this.getAccumulator());
     }
 
     done();
