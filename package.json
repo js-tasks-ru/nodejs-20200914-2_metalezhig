@@ -5,7 +5,8 @@
   "scripts": {
     "test": "cross-env NODE_ENV=test mocha --no-warnings --reporter=reporter.js --ignore=node_modules/** **/*.test.js",
     "test:local": "cross-env NODE_ENV=test node --no-warnings local.js",
-    "lint": "eslint --ignore-pattern 'public' --ignore-pattern '*.test.js' --ignore-pattern 'client' ."
+    "lint": "eslint --ignore-pattern 'public' --ignore-pattern '*.test.js' --ignore-pattern 'client' .",
+    "nodemon": "nodemon 05-http-server-streams/01-file-server-get/index.js"
   },
   "keywords": [],
   "author": "Sergey Zelenov",
@@ -21,6 +22,7 @@
     "glob": "^7.1.3",
     "html-webpack-plugin": "^4.3.0",
     "mocha": "^7.1.2",
+    "nodemon": "^2.0.4",
     "webpack": "^4.41.6",
     "webpack-cli": "^3.3.11"
   },
