@@ -1,22 +1,73 @@
-const url = require('url');
+const fs = require('fs');
 const http = require('http');
-const path = require('path');
+const {pipeline, PassThrough} = require('stream');
+const {promisify} = require('util');
+
+const {getPathname, getFilepath} = require('./utils');
+const LimitSizeStream = require('./LimitSizeStream');
+const LimitExceededError = require('./LimitExceededError');
+const HttpError = require('./HttpError');
+
+const LIMIT = 1024 * 1024;
+
+const pipelinePromise = promisify(pipeline);
 
 const server = new http.Server();
 
-server.on('request', (req, res) => {
-  const pathname = url.parse(req.url).pathname.slice(1);
+const send = (res, status, text = undefined) => {
+  res.statusCode = status;
+  res.end(text);
+};
 
-  const filepath = path.join(__dirname, 'files', pathname);
+const checkNestedPath = (pathname) => {
+  if (pathname.includes('/')) {
+    throw new HttpError(400);
+  }
+};
 
-  switch (req.method) {
-    case 'POST':
+const handleError = (err, filepath, res) => {
+  if (err instanceof LimitExceededError) {
+    send(res, 413);
+    fs.unlinkSync(filepath);
+    return;
+  }
 
-      break;
+  if (err instanceof HttpError) {
+    send(res, err.status, err.message);
+    return;
+  }
 
-    default:
-      res.statusCode = 501;
-      res.end('Not implemented');
+  if (err.code === 'EEXIST') {
+    send(res, 409);
+    return;
+  }
+
+  send(res, 501);
+};
+
+const createFile = async (filepath, req, res) => {
+  const transform = new LimitSizeStream({limit: LIMIT});
+  const output = fs.createWriteStream(filepath, {flags: 'wx'});
+  const source = req.pipe(new PassThrough());
+  await pipelinePromise(source, transform, output);
+  send(res, 201, 'Created');
+};
+
+server.on('request', async (req, res) => {
+  const pathname = getPathname(req.url);
+  const filepath = getFilepath(pathname);
+  try {
+    checkNestedPath(pathname);
+    switch (req.method) {
+      case 'POST':
+        await createFile(filepath, req, res);
+        break;
+
+      default:
+        send(res, 501, 'Not implemented');
+    }
+  } catch (err) {
+    handleError(err, filepath, res);
   }
 });
 
