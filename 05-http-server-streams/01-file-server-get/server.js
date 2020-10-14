@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const {pipeline} = require('stream');
 const {promisify} = require('util');
-const HttpError = require('./HttpError');
+const HttpError = require('../HttpError');
 
 const DEFAULT_ERROR_STATUS = 500;
 
