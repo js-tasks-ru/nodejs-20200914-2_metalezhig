@@ -6,7 +6,7 @@ const {promisify} = require('util');
 const {getPathname, getFilepath} = require('./utils');
 const LimitSizeStream = require('./LimitSizeStream');
 const LimitExceededError = require('./LimitExceededError');
-const HttpError = require('./HttpError');
+const HttpError = require('../HttpError');
 
 const LIMIT = 1024 * 1024;
 
