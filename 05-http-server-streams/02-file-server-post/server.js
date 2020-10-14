@@ -1,6 +1,6 @@
 const fs = require('fs');
 const http = require('http');
-const {pipeline, PassThrough} = require('stream');
+const {pipeline, finished, PassThrough} = require('stream');
 const {promisify} = require('util');
 
 const {getPathname, getFilepath} = require('./utils');
@@ -11,6 +11,7 @@ const HttpError = require('./HttpError');
 const LIMIT = 1024 * 1024;
 
 const pipelinePromise = promisify(pipeline);
+const finishedPromise = promisify(finished);
 
 const server = new http.Server();
 
@@ -27,14 +28,18 @@ const checkNestedPath = (pathname) => {
 
 const handleError = (err, filepath, res) => {
   if (err instanceof LimitExceededError) {
-    send(res, 413);
     fs.unlinkSync(filepath);
+    send(res, 413, err.message);
     return;
   }
 
   if (err instanceof HttpError) {
     send(res, err.status, err.message);
     return;
+  }
+
+  if (err.code === 'ERR_STREAM_PREMATURE_CLOSE') {
+    fs.unlinkSync(filepath);
   }
 
   if (err.code === 'EEXIST') {
@@ -45,12 +50,15 @@ const handleError = (err, filepath, res) => {
   send(res, 501);
 };
 
-const createFile = async (filepath, req, res) => {
+const createFile = async (filepath, req) => {
   const transform = new LimitSizeStream({limit: LIMIT});
   const output = fs.createWriteStream(filepath, {flags: 'wx'});
   const source = req.pipe(new PassThrough());
-  await pipelinePromise(source, transform, output);
-  send(res, 201, 'Created');
+
+  await new Promise((resolve, reject) => {
+    finishedPromise(req).catch(reject);
+    pipelinePromise(source, transform, output).then(resolve, reject);
+  });
 };
 
 server.on('request', async (req, res) => {
@@ -60,7 +68,8 @@ server.on('request', async (req, res) => {
     checkNestedPath(pathname);
     switch (req.method) {
       case 'POST':
-        await createFile(filepath, req, res);
+        await createFile(filepath, req);
+        send(res, 201, 'Created');
         break;
 
       default:
